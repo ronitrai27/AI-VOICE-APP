@@ -12,9 +12,10 @@ import {
   PhoneMissed,
   SearchCheck,
   Timer,
+  X,
 } from "lucide-react";
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Vapi from "@vapi-ai/web";
 import {
   AlertDialog,
@@ -27,7 +28,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { LuX } from "react-icons/lu";
+import {
+  LuChevronLeft,
+  LuDownload,
+  LuGhost,
+  LuMessagesSquare,
+  LuMic,
+  LuMicOff,
+  LuVideo,
+  LuVideoOff,
+  LuX,
+} from "react-icons/lu";
 import { toast } from "sonner";
 import { json, set } from "zod";
 import { Button } from "@/components/ui/button";
@@ -42,6 +53,9 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/services/supabaseClient";
 import { fi } from "zod/v4/locales";
+import { SidebarTrigger } from "@/components/ui/SideBar";
+import { Separator } from "@/components/ui/separator";
+import AI_Voice from "@/components/kokonutui/AiVoice";
 
 const VAPI_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
 
@@ -72,9 +86,73 @@ const StartInterview = () => {
 
   const [vapi] = useState(() => new Vapi(VAPI_PUBLIC_KEY));
 
+  // ====================================================
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isMicOn, setIsMicOn] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   // useEffect(() => {
   //   interviewInfo && startCall();
   // }, [interviewInfo]);
+
+  // ================================================
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      toast.success("Camera turned on");
+      setStream(mediaStream);
+      setIsCameraOn(true);
+    } catch (err) {
+      console.error("Camera access error:", err);
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    toast.success("Camera turned off");
+    setIsCameraOn(false);
+  };
+
+  const toggleCamera = () => {
+    if (isCameraOn) stopCamera();
+    else startCamera();
+  };
+
+  const toggleMic = async () => {
+    if (isMicOn) {
+      setIsMicOn(false);
+      toast.success("Mic turned off");
+    } else {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setIsMicOn(true);
+        toast.success("Mic turned on");
+      } catch (err) {
+        console.error("Mic access error:", err);
+      }
+    }
+  };
+
+  // =================================================
 
   const startCall = async () => {
     let questionList = "";
@@ -165,12 +243,10 @@ Ensure the interview remains focused on React
     }
   };
   vapi.on("speech-start", () => {
-    // console.log("Speech has started");
     setActiveUser(true);
   });
 
   vapi.on("speech-end", () => {
-    // console.log("Speech has ended");
     setActiveUser(false);
   });
 
@@ -236,6 +312,7 @@ Ensure the interview remains focused on React
     return `${hrs}:${mins}:${secs}`;
   };
 
+  // ===============================================
   useEffect(() => {
     vapi.on("message", (message: any) => {
       if (message.type === "transcript" && message.transcriptType === "final") {
@@ -252,15 +329,11 @@ Ensure the interview remains focused on React
           }
           return [...prev, { type: role, content }];
         });
-
-        // Show captions only for assistant
-        if (role === "assistant") {
-          setCaption(content);
-          setTimeout(() => setCaption(""), 2000);
-        }
       }
     });
   }, [vapi]);
+
+  // =============================================
 
   vapi.on("error", (e) => {
     console.error(e);
@@ -268,7 +341,10 @@ Ensure the interview remains focused on React
   });
 
   const stopCall = () => {
+    stopCamera();
     vapi.stop();
+    setIsMicOn(false);
+    toast.success("Call ended");
   };
 
   // messages to pass to feedback
@@ -301,10 +377,10 @@ Ensure the interview remains focused on React
             Feedback Generated Successfully!{" "}
           </span>
         ),
-      })
+      });
     } catch (err) {
       console.error("❌ Test Feedback Error:", err);
-    }finally {
+    } finally {
       setGenerateLoading(false);
     }
   };
@@ -364,13 +440,16 @@ Ensure the interview remains focused on React
     },
     {
       type: "user",
-      content:
-        "Yes i worked with node , express , flask and even supabase.",
+      content: "Yes i worked with node , express , flask and even supabase.",
     },
-    { type: "assistant", content: "Great, tell me something bout your projects?" },
     {
       type: "assistant",
-      content: "Tell me any third party packages you have worked with in your project",
+      content: "Great, tell me something bout your projects?",
+    },
+    {
+      type: "assistant",
+      content:
+        "Tell me any third party packages you have worked with in your project",
     },
     {
       type: "user",
@@ -381,93 +460,182 @@ Ensure the interview remains focused on React
 
   //   -----------------------------
   return (
-    <div className="relative mt-14 p-6 h-[calc(100vh-56px)]">
-      <div className="flex items-center justify-between max-w-[900px] mx-auto">
-        <h2 className="text-xl font-semibold  font-inter">
-          AI INTERVIEW SESSION
-        </h2>
-        <p className="text-base font-inter tracking-tight font-semibold text-blue-500 max-w-[300px] mx-auto text-center">
-          Important Notice: This feature has been stopped by the creater !!
-        </p>
-        <p className="text-xl flex items-center gap-3 font-semibold">
-          <Timer /> {formatTime(seconds)}
-        </p>
-      </div>
-
-      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-10 justify-items-center bg-gray-50 py-12 px-4 mt-6">
-        <div className="w-[440px] h-[380px] bg-blue-100 flex flex-col space-y-6 items-center justify-center rounded-md">
-          <div className="relative">
-            {activeUser && !loading && (
-              <span className="absolute inset-0 rounded-full bg-blue-500 opacity-50 animate-ping "></span>
-            )}
-            <h1 className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-3xl font-semibold font-sora">
-              AI
-            </h1>
-          </div>
-
-          <p className="mt-2 font-inter text-base font-medium">AI Recruiter</p>
+    <div className="w-full h-screen overflow-hidden  bg-white p-4">
+      <div className="flex justify-between w-full">
+        <div>
+          <h1 className="text-[24px] font-sora font-semibold mt-2 flex items-center gap-4">
+            <span className="font-extrabold font-sora text-2xl tracking-tighter">
+              VOCALX
+            </span>{" "}
+            AI Interview <LuVideo className="w-6 h-6" />
+          </h1>
         </div>
-        {loading && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center space-y-2">
-            <Loader2 className="animate-spin" size={36} />
-            <p className="font-sora text-lg"> Configuring Call</p>
-          </div>
-        )}
+        <Image
+          src={"/profile.png"}
+          alt="User Avatar"
+          width={70}
+          height={70}
+          className="rounded-full w-[65px] h-[65 px] shrink-0"
+        />
+      </div>
+      <Separator className="my-2 max-w-[90%] bg-gray-300 mx-auto" />
 
-        <div className="w-[440px] h-[380px] bg-blue-100 flex flex-col  space-y-6 items-center justify-center rounded-md">
-          <div className="relative">
-            {!activeUser && !loading && !setCallFinished && (
-              <span className="absolute inset-0 rounded-full bg-blue-500 opacity-50 animate-ping "></span>
+      {/* PARENT BOX - LEFT VIDEO / RIGHT - MESSAGE */}
+      <div className="flex gap-5 ">
+        {/* LEFT */}
+        <div className="flex-1 p-2">
+          <div className="flex justify-between mb-2">
+            {loading ? (
+              <div className="flex gap-4">
+                <div className="w-5 h-5 bg-red-400 rounded-full animate-bounce"></div>
+                <p className="font-inter text-base tracking-wide">
+                  Connecting...
+                </p>
+              </div>
+            ) : (
+              <div className="flex gap-4">
+                <div className="w-5 h-5 bg-green-300 rounded-full animate-bounce"></div>
+                <p className="font-inter text-base tracking-wide">Connected</p>
+              </div>
             )}
-            <Image
-              src="/profile.png"
-              width={90}
-              height={90}
-              alt="profile"
-              className="object-cover"
+
+            <p className="text-xl flex items-center gap-3 font-semibold">
+              <Timer /> {formatTime(seconds)}
+            </p>
+          </div>
+          {/* VIDEO PART */}
+          <div className="flex  justify-center w-full h-[520px] border-2 rounded-lg shadow relative overflow-hidden">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover rounded-xl"
             />
+            {!isCameraOn && (
+              <div>
+                <Image
+                  src={"/profile.png"}
+                  alt="User Avatar"
+                  width={70}
+                  height={70}
+                  className="rounded-full w-[200px] h-[200px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                />
+                <p className="absolute top-[70%] left-1/2 -translate-x-1/2 font-inter capitalize text-lg font-semibold">{interviewInfo?.userName} </p>
+                
+              </div>
+            )}
+
+            <div className="w-[180px] h-[180px] bg-blue-50 absolute top-3 right-3 rounded-lg border-2 border-blue-400 flex flex-col items-center justify-center overflow-hidden">
+              <div className="  bg-white border rounded-full w-16 h-16 flex items-center justify-center shrink-0 -mb-5">
+                <h1 className="font-extrabold font-inter text-2xl">AI</h1>
+              </div>
+              {!loading && (
+                <div className="mt-10 flex flex-col space-y-1">
+                  <AI_Voice />
+                  {activeUser ? (
+                    <p className="text-center font-inter text-sm">Speaking</p>
+                  ) : (
+                    <p className="text-center font-inter text-sm">Listening</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          <p className="mt-2 font-inter text-base font-medium capitalize">
-            {interviewInfo?.userName}
-          </p>
+          <div className="mt-7 flex justify-center gap-10">
+            {/*  Video Button */}
+            <Button
+              variant={isCameraOn ? "default" : "outline"}
+              onClick={toggleCamera}
+              className="font-inter text-sm shadow-md cursor-pointer"
+            >
+              {isCameraOn ? (
+                <LuVideo className="w-4 h-4 mr-2 text-white" />
+              ) : (
+                <LuVideoOff className="w-4 h-4 mr-2 text-black" />
+              )}
+              Video
+            </Button>
+            {/*  Mic Button */}
+            <Button
+              variant={isMicOn ? "default" : "outline"}
+              onClick={toggleMic}
+              className="font-inter text-sm shadow-md cursor-pointer"
+            >
+              {isMicOn ? (
+                <LuMic className="w-4 h-4 mr-2 text-white" />
+              ) : (
+                <LuMicOff className="w-4 h-4 mr-2 text-black" />
+              )}
+              Mic
+            </Button>
+            {/*  End Button */}
+            <Button
+              variant="destructive"
+              onClick={stopCall}
+              className="font-inter text-sm shadow-md cursor-pointer"
+            >
+              <X className="w-4 h-4 mr-2" />
+              End
+            </Button>
+
+            {/* TESTING BUTTON */}
+            {/* <Button className="text-sm font-inter" onClick={testing}>
+              Test
+            </Button> */}
+          </div>
         </div>
-      </div>
+        {/* RIGHT */}
+        <div className="w-[28%] bg-gray-50 rounded-lg border p-3 flex flex-col">
+          <h2 className="flex items-center justify-center gap-3 font-inter text-xl">
+            Transcribe <LuMessagesSquare className="w-6 h-6" />
+          </h2>
+          <div className="bg-blue-50 border border-blue-400 mt-4 px-3 py-6 rounded-md">
+            <p className="font-inter tracking-tight text-sm text-center">
+              All transcriptions appear here. Please give clear, relevant
+              answers.
+            </p>
+          </div>
 
-      <div className="flex items-center justify-center gap-10 mt-8">
-        <Mic className="h-12 w-12 p-3 rounded-full bg-blue-500 text-white" />{" "}
-        <AlertDialog>
-          <AlertDialogTrigger className="w-12 h-12 p-3 rounded-full bg-red-500 text-white cursor-pointer hover:scale-105 transition-all">
-            <PhoneMissed />
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="font-sora">
-                Are you absolutely sure?
-              </AlertDialogTitle>
-              <AlertDialogDescription className="font-inter">
-                This action cannot be undone. This will end your interview right
-                away. Are you confirming your decision?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={stopCall} className="bg-red-500 ">
-                Continue <LuX />
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-        {/* TESTIG ONLY--------------------- */}
-         {/* <Button className="text-base font-medium cursor-pointer" variant="outline" onClick={GenerateFeedback}>{generateLoading ? "Generating..." : "Generate Feedback (full stack)"}</Button> */}
-      </div>
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full ">
+              <h2 className="font-inter text-lg text-muted-foreground mb-2">
+                No Transcriptions Available
+              </h2>
+              <LuGhost className="w-6 h-6 text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-3 h-[380px] mt-5 overflow-y-scroll">
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${
+                    msg.type === "assistant" ? "justify-start" : "justify-end"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[70%] px-4 py-2 rounded-2xl text-xs tracking-tight font-inter shadow-sm ${
+                      msg.type === "assistant"
+                        ? "bg-white text-foreground rounded-bl-none"
+                        : "bg-primary text-primary-foreground rounded-br-none"
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                  <div ref={scrollRef} />
+                </div>
+              ))}
+            </div>
+          )}
 
-      <div className="absolute bottom-7 left-1/2 transform -translate-x-1/2">
-        {caption && (
-          <p className="text-lg text-muted-foreground font-medium tracking-wide w-full">
-            {caption}
-          </p>
-        )}
+          <div className="w-full mt-auto">
+            <Separator className="my-2" />
+            <Button className="font-inter text-sm w-full bg-gradient-to-br from-indigo-400 to-sky-500 text-white hover:bg-blue-600 cursor-pointer">
+              Download Transcribe <LuDownload className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -509,9 +677,7 @@ Ensure the interview remains focused on React
               >
                 Close
               </Button>
-              <Button
-                className="w-full  font-medium "
-              >
+              <Button className="w-full  font-medium ">
                 Explore <SearchCheck />
               </Button>
             </div>
@@ -523,3 +689,9 @@ Ensure the interview remains focused on React
 };
 
 export default StartInterview;
+
+// <Timer /> {formatTime(seconds)}
+// onClick={stopCall}
+//  {interviewInfo?.userName}
+// onClick={() => setIsDialogOpen(false)}
+// {interviewInfo?.jobTitle}

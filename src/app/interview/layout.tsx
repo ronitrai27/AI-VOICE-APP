@@ -8,7 +8,7 @@ function layout({ children }: { children: React.ReactNode }) {
   return (
     <div>
       <InterviewProvider>
-        <InterviewLinkHeader/>
+        {/* <InterviewLinkHeader/> */}
       {children}
       </InterviewProvider>
        <Toaster />

@@ -234,7 +234,8 @@ const Interview = () => {
             <div className="w-full flex items-center justify-center mt-4">
               <Button
                 className=""
-                disabled={loading || !userName || !userEmail || !uploaded}
+                // disabled={loading || !userName || !userEmail || !uploaded}
+                 disabled={loading || !userName || !userEmail }
                 onClick={() => onJoinInterview()}
               >
                 {loading && <Loader2 className="mr-2  animate-spin" />} Join
