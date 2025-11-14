@@ -51,6 +51,7 @@ const StudentLogin = () => {
           router.push("/candidate-auth/callback");
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.error_description || err.message);
     } finally {
