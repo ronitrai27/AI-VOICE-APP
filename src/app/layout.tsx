@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { ThemeProvider } from "@/context/ThemeProvider";
 import { UserDataProvider } from "@/context/UserDetailContext";
+
 const sora = Sora({
   subsets: ["latin"],
   variable: "--font-sora",
@@ -46,6 +47,7 @@ export default function RootLayout({
             },
           }}
         />
+     
       </body>
     </html>
   );

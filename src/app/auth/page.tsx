@@ -7,21 +7,9 @@ import { supabase } from "@/services/supabaseClient";
 import { toast } from "react-hot-toast";
 import { SparklesCore } from "@/components/ui/sparkles";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 const Login = () => {
-  // const handleLogin = async (provider: "google" | "discord") => {
-  //   const { error } = await supabase.auth.signInWithOAuth({
-  //     provider,
-  //     options: {
-  //       redirectTo: `${window.location.origin}/auth/callback`,
-  //     },
-  //   });
-
-  //   if (error) {
-  //     console.error("Login error:", error.message);
-  //     toast.error(error.message);
-  //   }
-  // };
-
+const router = useRouter();
   const handleLogin = async (provider: "google" | "discord") => {
     const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL + "/auth/callback";
 
@@ -119,9 +107,10 @@ const Login = () => {
           </Button>
         </div>
 
-        <p className="text-gray-600 mt-12 text-sm font-light cursor-pointer font-inter underline underline-offset-4 ">
-          Terms & Conditions
+        <p className="text-gray-600 mt-12 text-sm font-light cursor-pointer font-inter ">
+        You are a Candidate ? <span onClick={()=>router.push("/candidate-auth")} className="text-blue-600 underline underline-offset-4 cursor-pointer">Click Here !</span>
         </p>
+       
       </div>
     </div>
   );

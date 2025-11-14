@@ -13,6 +13,16 @@ interface DBUser {
   created_at: string;
 }
 
+interface DBCandidate {
+  id: number;
+  name: string;
+  email: string;
+  picture: string;
+  current_occupation: string;
+  referal_link: string;
+  created_at: string;
+}
+
 interface UserDataContextType {
   users: DBUser[] | null;
   setUsers: React.Dispatch<React.SetStateAction<DBUser[] | null>>;
@@ -39,68 +49,128 @@ export function UserDataProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const constCreateNewUser = async () => {
     setLoading(true);
-    supabase.auth
-      .getUser()
-      .then(async ({ data: { user } }) => {
-        if (!user) {
-          console.log(" No user found from Supabase auth");
+
+    try {
+      const { data: authData, error: authError } =
+        await supabase.auth.getUser();
+      const authUser = authData?.user;
+
+      if (!authUser) {
+        console.log("⚠️ No authenticated user");
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ Authenticated user:", authUser.email);
+
+      // Detect provider
+      const provider = authUser.app_metadata?.provider;
+      const isEmailProvider = provider === "email";
+      localStorage.setItem("emailProvider", isEmailProvider ? "true" : "false");
+
+      // Detect role
+      const role = authUser.user_metadata?.role;
+      console.log("👤 User role:", role);
+
+      // ----------------------------------------------------------
+      //  CANDIDATE LOGIC 
+      // ----------------------------------------------------------
+      if (role === "candidate") {
+        console.log("🎯 Candidate detected");
+
+        //  Check if candidate already exists
+        const { data: existingCandidate, error: candidateFetchError } =
+          await supabase
+            .from("candidates")
+            .select("*")
+            .eq("email", authUser.email)
+            .maybeSingle();
+
+        if (candidateFetchError) {
+          console.error("❌ Error fetching candidate:", candidateFetchError);
           setLoading(false);
           return;
         }
 
-        console.log("✅ Authenticated user:", user.email);
+        if (!existingCandidate) {
+          console.log("No candidate found → inserting new candidate");
 
-        const { data: users, error: fetchError } = await supabase
-          .from("users")
-          .select("*")
-          .eq("email", user.email);
-
-        if (fetchError) {
-          console.error(
-            " Error fetching user from 'users' table:",
-            fetchError.message
-          );
-          setLoading(false);
-          return;
-        }
-
-        if (!users || users.length === 0) {
-          console.log(" No user found in DB, inserting new one...");
-
-          const { data: insertedData, error: insertError } = await supabase
-            .from("users")
+          const { data: insertedCandidate, error: insertError } = await supabase
+            .from("candidates")
             .insert([
               {
-                name: user.user_metadata?.name,
-                email: user.email,
-                picture: user.user_metadata?.picture,
-                organization: "no organization",
+                name: authUser.user_metadata?.name || "",
+                email: authUser.email,
+                picture: authUser.user_metadata?.picture || "",
+                current_occupation: "",
+                referal_link: "",
               },
             ])
             .select();
 
           if (insertError) {
-            console.log("❌ Error inserting new user:", insertError.message);
+            console.error("Error inserting candidate:", insertError);
           } else {
-            console.log(" New user inserted:", insertedData);
-            setUsers(insertedData);
-            setIsNewUser(true);
-            console.log("🟢 isNewUser set to TRUE");
+            console.log("Candidate inserted:", insertedCandidate);
           }
         } else {
-          setUsers(users);
-          setIsNewUser(false);
+          console.log("✔ Candidate already exists");
         }
 
         setLoading(false);
-      })
-      .catch((err) => {
-        console.error("❌ Error during auth check:", err);
+        return; 
+      }
+
+      // ----------------------------------------------------------
+      //  Normal Users Logic (YOUR ORIGINAL LOGIC)
+      // ----------------------------------------------------------
+
+      const { data: usersDB, error: fetchError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", authUser.email);
+
+      if (fetchError) {
+        console.error("❌ Error fetching user:", fetchError.message);
         setLoading(false);
-      });
+        return;
+      }
+
+      if (!usersDB || usersDB.length === 0) {
+        console.log("No user found → inserting new user");
+
+        const { data: insertedData, error: insertError } = await supabase
+          .from("users")
+          .insert([
+            {
+              name: authUser.user_metadata?.name,
+              email: authUser.email,
+              picture: authUser.user_metadata?.picture,
+              organization: "no organization",
+            },
+          ])
+          .select();
+
+        if (insertError) {
+          console.log("❌ Error inserting new user:", insertError.message);
+        } else {
+          console.log("✅ New user inserted:", insertedData);
+          setUsers(insertedData);
+          setIsNewUser(true);
+        }
+      } else {
+        setUsers(usersDB);
+        setIsNewUser(false);
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error("❌ Error in constCreateNewUser:", err);
+      setLoading(false);
+    }
   };
 
-   useEffect(() => {
+  useEffect(() => {
     if (users?.[0]) {
       setRemainingCredits(users[0].remainingCredits);
     }
